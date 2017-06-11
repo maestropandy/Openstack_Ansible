@@ -1,0 +1,477 @@
+---
+- hosts: contrail
+  gather_facts: yes
+  remote_user: root
+  serial: 1
+  tags: playstopservices
+  tasks:
+#################
+#Restart services
+#################
+
+  - name: restart keepalived 
+    shell: service keepalived restart
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+
+#################
+#Verify services
+#################
+
+  - name: verify keepalived
+    shell: service keepalived status
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+
+  - pause: prompt="Verify service & Press ENTER to continue"
+
+
+#################
+#Restart haproxy on each controller
+#################
+
+- hosts: controllers
+  gather_facts: yes
+  remote_user: root
+  serial: 1
+  tags: playhaproxy
+  tasks:
+  - name: stop haproxy
+    shell: service haproxy stop
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+  - pause: prompt="Pausing for 60 seconds for server to start" seconds=60
+
+  - name: start haproxy
+    shell: service haproxy start
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+  - pause: prompt="Pausing for 60 seconds for server to start" seconds=60
+
+  - name: verify haproxy process
+    shell: service haproxy status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("haproxy is running") !=-1
+    retries: 10
+    delay: 5
+  - debug: var=png.stdout
+
+  - pause: prompt="Verify if haproxy is up on all controllers"
+
+
+#################
+#Restart rabbitmq on each controller
+#################
+
+- hosts: controllers
+  gather_facts: yes
+  remote_user: root
+  serial: 1
+  tags: playrabbitmq
+  tasks:
+  - name: stop rabbitmq-server
+    shell: service rabbitmq-server stop
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+  - pause: prompt="Pausing for 60 seconds for server to stop" seconds=60
+
+  - name: kill all rabbit-mq processes, if any
+    shell: ps -ef | grep rabbitmq | awk {'print "kill -9 "$2'} | sh
+    ignore_errors: yes
+    register: png
+    tags:
+      - killrabbitmq
+  - debug: var=png.stdout
+  - pause: prompt="Killing rabbitmq processes, wait for 30 seconds" seconds=30
+
+  - name: verify if rabbitmq processes are killed
+    shell: ps -ef | grep rabbitmq
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+  - pause: prompt="Verify if rabbitmq processes are killed & press ENTER to continue"
+
+  - name: start rabbitmq-server
+    shell: service rabbitmq-server start
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+  - pause: prompt="Pausing for 60 seconds for server to start" seconds=60
+
+  - pause: prompt="Verify rabbitmq - "rabbitmqctl cluster_status" & press ENTER to proceed"
+
+#################
+#Start contrail-database service 
+#################
+
+- hosts: contrail
+  gather_facts: yes
+  remote_user: root
+  serial: 1
+  tags: playcontrail
+  tasks:
+  - name: stop contrail-database 
+    shell: service contrail-database stop
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+  - pause: prompt="contrail-database is stoping" seconds=5
+
+  - name: start contrail-database 
+    shell: service contrail-database start
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+  - pause: prompt="contrail-database is starting" seconds=5
+
+  - name: verify contrail-database
+    shell: service contrail-database status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("contrail-database                RUNNING    pid ") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+  - pause: prompt="Verify if the contrail-database is UP using - nodetool status & Press ENTER to proceed"
+
+
+#################
+#Start contrail config service 
+#################
+  - name: stop supervisor-config 
+    shell: service supervisor-config stop
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+  - pause: prompt="supervisor-config is stoping" seconds=60
+
+  - name: start supervisor-config
+    shell: service supervisor-config start
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+  - pause: prompt="supervisor-config is starting" seconds=60
+
+  - name: verify supervisor-config
+    shell: service supervisor-config status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("supervisor-config start/running ") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - name: verify contrail-api 
+    shell: service contrail-api status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("contrail-api:0                RUNNING    pid ") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - name: verify contrail-config-nodemgr 
+    shell: service contrail-config-nodemgr status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("contrail-config-nodemgr                RUNNING    pid ") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - name: verify contrail-device-manager 
+    shell: service contrail-device-manager status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("contrail-device-manager                RUNNING    pid ") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - name: verify contrail-discovery 
+    shell: service contrail-discovery status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("contrail-discovery:0                RUNNING    pid ") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - name: verify contrail-schema 
+    shell: service contrail-schema status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("contrail-schema                  RUNNING    pid") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - name: verify contrail-schema 
+    shell: service contrail-schema status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("contrail-schema                  RUNNING    pid") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - name: verify contrail-svc-monitor 
+    shell: service contrail-svc-monitor status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("contrail-svc-monitor                  RUNNING    pid") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - pause: prompt="Verify if the contrail config services are UP using - contrail status & Press ENTER to proceed"
+
+#################
+#Start Contrail Control service 
+#################
+  - name: stop supervisor-control 
+    shell: service supervisor-control stop
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+  - pause: prompt="supervisor-control is stoping" seconds=60
+
+  - name: start supervisor-control
+    shell: service supervisor-control start
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+  - pause: prompt="supervisor-control is starting" seconds=60
+
+  - name: verify supervisor-control
+    shell: service supervisor-control status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("supervisor-control start/running ") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - name: verify contrail-control 
+    shell: service contrail-control status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("contrail-control                RUNNING    pid ") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - name: verify contrail-control-nodemgr 
+    shell: service contrail-control-nodemgr status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("contrail-control-nodemgr                RUNNING    pid ") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - name: verify contrail-dns 
+    shell: service contrail-dns status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("contrail-dns                RUNNING    pid ") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - name: verify contrail-named 
+    shell: service contrail-named status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("contrail-named                RUNNING    pid ") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - pause: prompt="Verify if the contrail control services are UP using - contrail status & Press ENTER to proceed"
+
+
+#################
+#Start Contrail Analytics service 
+#################
+  - name: stop supervisor-analytics 
+    shell: service supervisor-analytics stop
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+  - pause: prompt="supervisor-analytics is stoping" seconds=60
+
+  - name: start supervisor-analytics
+    shell: service supervisor-analytics start
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+  - pause: prompt="supervisor-analytics is starting" seconds=60
+
+  - name: verify supervisor-analytics
+    shell: service supervisor-analytics status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("supervisor-analytics start/running ") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - name: verify contrail-analytics-api 
+    shell: service contrail-analytics-api status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("contrail-analytics-api                RUNNING    pid ") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - name: verify contrail-analytics-nodemgr
+    shell: service contrail-analytics-nodemgr status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("contrail-analytics-nodemgr                RUNNING    pid ") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - name: verify contrail-collector 
+    shell: service contrail-collector status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("contrail-collector                RUNNING    pid ") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - name: verify contrail-query-engine 
+    shell: service contrail-query-engine status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("contrail-query-engine                RUNNING    pid ") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - name: verify contrail-snmp-collector
+    shell: service contrail-snmp-collector status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("contrail-snmp-collector                  RUNNING    pid") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - name: verify contrail-topology
+    shell: service contrail-topology status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("contrail-topology                  RUNNING    pid") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - pause: prompt="Verify if the contrail analytics services are UP using - contrail status & Press ENTER to proceed"
+
+#################
+#Start Contrail-WebUI service 
+#################
+- hosts: contrailWebUI
+  gather_facts: yes
+  remote_user: root
+  serial: 1
+  tags: playcontrailWebUI
+  tasks:
+  - name: stop contrail-webui 
+    shell: service contrail-webui stop
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+  - pause: prompt="contrail-webui is stoping" seconds=20
+
+  - name: start contrail-webui
+    shell: service contrail-webui start
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+  - pause: prompt="contrail-webui is starting" seconds=20
+
+  - name: verify contrail-webui
+    shell: service contrail-webui status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("contrail-webui                   RUNNING    pid ") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - pause: prompt="Verify if the Contrail Web UI is UP & Press ENTER to proceed"
+
+#################
+#Start Neutron service 
+#################
+- hosts: contrail
+  gather_facts: yes
+  remote_user: root
+  serial: 1
+  tags: playcontrailNeutron
+  tasks:
+  - name: stop neutron-server 
+    shell: service neutron-server stop
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+  - pause: prompt="neutron-server is stoping" seconds=20
+
+  - name: start neutron-server
+    shell: service neutron-server start
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+  - pause: prompt="neutron-server is starting" seconds=20
+
+  - name: verify neutron-server
+    shell: service neutron-server status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("neutron-server start/running ") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+
+  - pause: prompt="Verify if the Neutron Service is UP & Press ENTER to proceed"
+
+#################
+#Start supervisor-vrouter on compute nodes
+#################
+
+- hosts: computes
+  gather_facts: yes
+  remote_user: root
+  tags: playnovacomputes
+  tasks:
+  - name: restart supervisor-vrouter
+    shell: service supervisor-vrouter restart
+    ignore_errors: yes
+    register: png
+  - debug: var=png.stdout
+  - pause: prompt="contrail-vrouter-agent is restarting" seconds=5
+
+  - name: verify supervisor-vrouter
+    shell: service supervisor-vrouter status
+    ignore_errors: yes
+    register: png
+    until: png.stdout.find("supervisor-vrouter start/running") !=-1
+    retries: 3
+    delay: 2
+  - debug: var=png.stdout
+  - pause: prompt="Press ENTER to proceed"
+
+
+
